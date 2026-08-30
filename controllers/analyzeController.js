@@ -31,26 +31,35 @@ const extractJSON = (text) => {
 // ✅ SAFE ARRAY PARSER
 // ===================================
 const extractJSONArray = (text) => {
-
   try {
+    if (!text || typeof text !== "string") {
+      return [];
+    }
 
-    const cleaned =
-      text
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
+    const cleaned = text
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
 
-    const match =
-      cleaned.match(/\[[\s\S]*\]/);
+    const start = cleaned.indexOf("[");
+    const end = cleaned.lastIndexOf("]");
 
-    return match
-      ? JSON.parse(match[0])
-      : [];
+    if (start === -1 || end === -1 || end <= start) {
+      console.log("ROADMAP JSON NOT FOUND:");
+      console.log(cleaned);
+      return [];
+    }
 
-  } catch {
+    const jsonString = cleaned.slice(start, end + 1);
 
+    const parsed = JSON.parse(jsonString);
+
+    return Array.isArray(parsed) ? parsed : [];
+
+  } catch (error) {
+    console.log("ARRAY JSON PARSE ERROR:", error.message);
+    console.log("RAW ARRAY RESPONSE:", text);
     return [];
-
   }
 };
 
@@ -825,33 +834,47 @@ improvements.push(
     // ===================================
     // 🗺️ ROADMAP
     // ===================================
-    let roadmap = [];
+   // ===================================
+// 🗺️ ROADMAP
+// ===================================
 
-    try {
+let roadmap = [];
 
-      const roadmapPrompt = `
+try {
+
+  const roadmapPrompt = `
 You are an expert AI career mentor.
 
-Generate a personalized 12-week roadmap.
+Generate a personalized 12-week career roadmap.
 
-IMPORTANT:
-- roadmap depends on missing skills
-- include projects
-- include interview prep
-- include advanced concepts
-- final week:
-mock interview + revision
+IMPORTANT RULES:
 
-Return ONLY JSON array.
+- Generate EXACTLY 12 weeks.
+- Week values must be "Week 1" through "Week 12".
+- Roadmap must depend on the missing skills.
+- Include practical projects.
+- Include interview preparation.
+- Include advanced concepts.
+- Week 12 must include mock interview and revision.
+- Return ONLY a valid JSON array.
+- Do NOT use markdown.
+- Do NOT use code fences.
+- Do NOT add any explanation.
+- Every object must contain exactly:
+  week
+  title
+  difficulty
+  hours
 
 FORMAT:
+
 [
- {
-  "week":"Week 1",
-  "title":"React Fundamentals",
-  "difficulty":"Beginner",
-  "hours":"12 hrs"
- }
+  {
+    "week": "Week 1",
+    "title": "React Fundamentals",
+    "difficulty": "Beginner",
+    "hours": "12 hrs"
+  }
 ]
 
 Resume:
@@ -864,41 +887,44 @@ Missing Skills:
 ${missingSkills.join(", ")}
 `;
 
-      const roadmapResponse =
-        await groq.chat.completions.create({
+  const roadmapResponse =
+    await groq.chat.completions.create({
 
-          model:
-            "llama-3.1-8b-instant",
+      model:
+        "llama-3.1-8b-instant",
 
-          messages: [
-            {
-              role: "user",
+      messages: [
+        {
+          role: "user",
+          content: roadmapPrompt
+        }
+      ],
 
-              content:
-                roadmapPrompt,
-            },
-          ],
+      temperature: 0.7
 
-          temperature: 0.7,
-        });
+    });
 
-      roadmap =
-        extractJSONArray(
+  const rawRoadmap =
+    roadmapResponse.choices[0].message.content;
 
-          roadmapResponse
-            .choices[0]
-            .message.content
+  console.log("=================================");
+  console.log("RAW ROADMAP RESPONSE:");
+  console.log(rawRoadmap);
+  console.log("=================================");
 
-        );
+  roadmap = extractJSONArray(rawRoadmap);
 
-    } catch (err) {
+  console.log("PARSED ROADMAP:");
+  console.log(roadmap);
 
-      console.log(
-        "ROADMAP ERROR:",
-        err.message
-      );
-    }
+} catch (err) {
 
+  console.log(
+    "ROADMAP ERROR:",
+    err.message
+  );
+
+}
     // ===================================
     // ✨ RESUME REWRITE
     // ===================================
@@ -1004,6 +1030,55 @@ ${missingSkills.join(", ")}
         err.message
       );
     }
+    // ===================================
+// 🛡️ ROADMAP FALLBACK
+// ===================================
+
+if (!Array.isArray(roadmap) || roadmap.length === 0) {
+
+  console.log(
+    "Using fallback roadmap..."
+  );
+
+  const skillsForRoadmap =
+    missingSkills.length > 0
+      ? missingSkills
+      : jdSkills;
+
+  roadmap = Array.from(
+    { length: 12 },
+    (_, index) => {
+
+      const skill =
+        skillsForRoadmap[index % skillsForRoadmap.length] ||
+        jobTitle;
+
+      return {
+        week: `Week ${index + 1}`,
+
+        title:
+          index < 4
+            ? `Learn ${skill}`
+            : index < 8
+            ? `Practice ${skill}`
+            : index < 11
+            ? `Build Project using ${skill}`
+            : "Mock Interview + Final Revision",
+
+        difficulty:
+          index < 4
+            ? "Beginner"
+            : index < 8
+            ? "Intermediate"
+            : "Advanced",
+
+        hours: "12 hrs"
+      };
+
+    }
+  );
+
+}
 
 
     // ===================================
