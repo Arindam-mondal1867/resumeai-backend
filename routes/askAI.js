@@ -79,8 +79,8 @@ Rules:
 
         ],
 
-        model:
-          "llama-3.3-70b-versatile",
+       model:
+  "llama-3.1-8b-instant",
 
         temperature: 0.9
 
@@ -100,14 +100,16 @@ Rules:
 
   catch (err) {
 
-    console.log(err);
+  console.log("ASK AI ERROR:");
+  console.log(err.message);
+  console.log(err);
 
-    res.status(500).json({
-      error:
-        "AI failed"
-    });
+  res.status(500).json({
+    error: "AI failed",
+    details: err.message
+  });
 
-  }
+}
 
 });
 
